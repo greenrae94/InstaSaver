@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark from the moment the icon is tapped, before Compose ever draws a frame -->
+    <style name="Theme.InstaSaver" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/charcoal_background</item>
+        <item name="android:statusBarColor">@color/charcoal_background</item>
+        <item name="android:navigationBarColor">@color/charcoal_background</item>
+    </style>
+</resources>

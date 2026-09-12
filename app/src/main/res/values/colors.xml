@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Charcoal, not pure black — keeps thumbnails from floating on OLED -->
+    <color name="charcoal_background">#16161A</color>
+    <!-- Warm amber accent used by the launcher icon and the splash icon -->
+    <color name="amber_accent">#F5B14C</color>
+</resources>

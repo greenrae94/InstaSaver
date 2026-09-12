@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,7 +72,9 @@ fun ItemScreen(item: SavedItem, onBack: () -> Unit) {
             ) {
                 Text("Share")
             }
-            Button(
+            // Outlined rather than filled — this is the destructive action and should not
+            // look as inviting as Share
+            OutlinedButton(
                 onClick = {
                     // The item stays open on failure so the message below is visible, rather than
                     // closing a screen that no longer matches what actually happened
@@ -82,6 +87,8 @@ fun ItemScreen(item: SavedItem, onBack: () -> Unit) {
                         is ItemActions.DeleteResult.Failed -> deleteFailed = true
                     }
                 },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 modifier = Modifier.weight(1f),
             ) {
                 Text("Delete")
@@ -89,7 +96,11 @@ fun ItemScreen(item: SavedItem, onBack: () -> Unit) {
         }
 
         if (deleteFailed) {
-            Text("Couldn't delete this file", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Couldn't delete this file",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
@@ -143,7 +154,7 @@ private fun VideoPlayer(item: SavedItem, modifier: Modifier = Modifier) {
     }
 
     if (failed) {
-        Text("Couldn't play this file", modifier = modifier)
+        Text("Couldn't play this file", modifier = modifier, color = MaterialTheme.colorScheme.error)
     } else {
         AndroidView(
             factory = { PlayerView(it).apply { this.player = player } },
@@ -165,5 +176,5 @@ private fun ImageView(item: SavedItem, modifier: Modifier = Modifier) {
 
     bitmap?.let {
         Image(bitmap = it, contentDescription = item.displayName, modifier = modifier.fillMaxWidth())
-    } ?: Text("Couldn't open this image", modifier = modifier)
+    } ?: Text("Couldn't open this image", modifier = modifier, color = MaterialTheme.colorScheme.error)
 }

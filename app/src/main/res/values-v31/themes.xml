@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ draws its own splash screen before the window theme applies, so its
+         background and icon need to be set here too, or that frame flashes white as well -->
+    <style name="Theme.InstaSaver" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/charcoal_background</item>
+        <item name="android:statusBarColor">@color/charcoal_background</item>
+        <item name="android:navigationBarColor">@color/charcoal_background</item>
+        <item name="android:windowSplashScreenBackground">@color/charcoal_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+    </style>
+</resources>

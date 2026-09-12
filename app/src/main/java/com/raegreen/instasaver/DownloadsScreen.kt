@@ -7,18 +7,27 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +50,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import kotlinx.coroutines.flow.map
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(onOpenItem: (SavedItem) -> Unit) {
     val context = LocalContext.current
@@ -71,29 +82,44 @@ fun DownloadsScreen(onOpenItem: (SavedItem) -> Unit) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        PasteRow()
-
-        if (items.isEmpty() && visibleActive.isEmpty()) {
-            Text(
-                "Nothing saved yet. In Instagram, tap Share and pick InstaSaver — or paste a link above.",
-                modifier = Modifier.padding(vertical = 24.dp),
-                style = MaterialTheme.typography.bodyMedium,
+    // The status/nav bar insets are already handled once by MainActivity's
+    // safeDrawingPadding wrapper, so this bar must not claim them a second time
+    Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            TopAppBar(
+                title = { Text("InstaSaver") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                ),
             )
-        }
+        },
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 16.dp)) {
+            PasteRow()
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            items(visibleActive, key = { it.id.toString() }) { download ->
-                ActiveRow(
-                    download,
-                    onDismiss = {
-                        dismissedFailures.add(download.id.toString())
-                        dismissed = dismissedFailures.get()
-                    },
+            if (items.isEmpty() && visibleActive.isEmpty()) {
+                Text(
+                    "Nothing saved yet. In Instagram, tap Share and pick InstaSaver — or paste a link above.",
+                    modifier = Modifier.padding(vertical = 24.dp),
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            items(items, key = { it.uri.toString() }) { item ->
-                SavedRow(item, onClick = { onOpenItem(item) })
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                items(visibleActive, key = { it.id.toString() }) { download ->
+                    ActiveRow(
+                        download,
+                        onDismiss = {
+                            dismissedFailures.add(download.id.toString())
+                            dismissed = dismissedFailures.get()
+                        },
+                    )
+                }
+                items(items, key = { it.uri.toString() }) { item ->
+                    SavedRow(item, onClick = { onOpenItem(item) })
+                }
             }
         }
     }
@@ -119,6 +145,21 @@ private fun PasteRow() {
             },
             label = { Text("Paste a link") },
             isError = error != null,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                errorBorderColor = MaterialTheme.colorScheme.error,
+                errorLabelColor = MaterialTheme.colorScheme.error,
+                errorCursorColor = MaterialTheme.colorScheme.error,
+            ),
             modifier = Modifier.weight(1f),
         )
         TextButton(
@@ -164,10 +205,14 @@ private fun ActiveRow(download: ActiveDownload, onDismiss: () -> Unit) {
                     DownloadStage.FAILED -> download.reason ?: "Download failed"
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (download.stage == DownloadStage.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                color = if (download.stage == DownloadStage.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (download.stage == DownloadStage.FAILED) {
-                Text("Tap to dismiss", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    "Tap to dismiss",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -180,22 +225,34 @@ private fun SavedRow(item: SavedItem, onClick: () -> Unit) {
         value = Thumbnails.load(context, item)
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-            thumbnail?.let {
-                Image(bitmap = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(56.dp))
-            } ?: Icon(Icons.Filled.PlayArrow, contentDescription = null)
-        }
-        Column {
-            Text(item.displayName, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
-            Text(
-                "${DateUtils.getRelativeTimeSpanString(item.dateAddedSeconds * 1000)} · ${Formatter.formatShortFileSize(context, item.sizeBytes)}",
-                style = MaterialTheme.typography.bodySmall,
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Box(modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                thumbnail?.let {
+                    Image(bitmap = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(56.dp))
+                } ?: Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column {
+                Text(
+                    item.displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+                Text(
+                    "${DateUtils.getRelativeTimeSpanString(item.dateAddedSeconds * 1000)} · ${Formatter.formatShortFileSize(context, item.sizeBytes)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
