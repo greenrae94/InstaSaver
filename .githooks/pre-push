@@ -1,0 +1,6 @@
+#!/bin/sh
+# This repo is deliberately local-only. Refuse every push, including one started
+# by a "Publish to GitHub" button in an editor.
+echo "pre-push: this repository is local-only and must not be pushed anywhere." >&2
+echo "If that has genuinely changed, remove .githooks/pre-push first." >&2
+exit 1
