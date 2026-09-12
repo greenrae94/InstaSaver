@@ -55,8 +55,8 @@ class InstagramPageFetcherTest {
         fetcher.fetch(PostRef("DdDxpiPOAzs", PostKind.REEL))
         val request = server.takeRequest()
 
-        // Every header must match the constant exactly, so a regression in any of the
-        // eleven values Instagram checks is caught, not just the handful spot-checked before
+        // Pins the source map to eleven entries so a header silently added or removed from the
+        // constant itself is noticed; the loop below is what actually catches a dropped request header
         assertEquals(11, InstagramHeaders.values.size)
 
         InstagramHeaders.values.forEach { (name, value) ->

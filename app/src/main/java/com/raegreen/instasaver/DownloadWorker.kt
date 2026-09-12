@@ -41,11 +41,17 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
         }
 
+        // WorkManager drops progress data once work reaches a terminal state, so a failure must
+        // carry the label in its output data instead — captured here as onLabel fires
+        var lastLabel: String? = null
+
         // The coordinator only catches PostDataParseException and IOException; anything else (a
         // SecurityException out of ContentResolver, say) must still resolve the "Saving…" notification
         // rather than leave it on screen forever
         val outcome = try {
             DownloadCoordinator(source, sink).run(sharedText) { label ->
+                lastLabel = label
+
                 setProgress(androidx.work.workDataOf(KEY_LABEL to label))
             }
         } catch (error: CancellationException) {
@@ -54,9 +60,14 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             throw error
         } catch (error: Exception) {
             Log.d(LOG_TAG, "unexpected failure for ${sharedText?.take(80)}: $error")
-            notifier.failure("Something went wrong while saving this post")
 
-            return@withContext Result.failure()
+            val message = "Something went wrong while saving this post"
+
+            notifier.failure(message)
+
+            return@withContext Result.failure(
+                Data.Builder().putString(KEY_ERROR, message).putString(KEY_LABEL, lastLabel).build(),
+            )
         }
 
         Log.d(LOG_TAG, "outcome for ${sharedText?.take(80)}: $outcome")
@@ -67,14 +78,23 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
         notifier.result(outcome)
 
-        // A NetworkFailed outcome that has exhausted its retries is a genuine failure, not successful
-        // work, even though the user has already been told via the notification above
-        if (outcome is Outcome.NetworkFailed) Result.failure() else Result.success()
+        // Recording a failure as failed work — with its reason and label — is what lets the list show it
+        if (OutcomeMessages.isFailure(outcome)) {
+            return@withContext Result.failure(
+                Data.Builder()
+                    .putString(KEY_ERROR, OutcomeMessages.text(outcome))
+                    .putString(KEY_LABEL, lastLabel)
+                    .build(),
+            )
+        }
+
+        Result.success()
     }
 
     companion object {
         const val KEY_TEXT = "shared_text"
         const val KEY_LABEL = "label"
+        const val KEY_ERROR = "error"
         const val TAG = "instasaver-download"
         private const val KEY_NOTIFICATION_ID = "notification_id"
         private const val DEFAULT_NOTIFICATION_ID = 1

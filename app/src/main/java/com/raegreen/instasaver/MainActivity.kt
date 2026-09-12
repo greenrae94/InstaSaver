@@ -1,16 +1,19 @@
 package com.raegreen.instasaver
 
 import android.Manifest
+import android.content.ClipboardManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,14 +36,37 @@ class MainActivity : ComponentActivity() {
 
                     val item = openItem
 
-                    if (item == null) {
-                        DownloadsScreen(onOpenItem = { openItem = it })
-                    } else {
-                        Text("Item screen arrives in Task 5: ${item.displayName}")
+                    // Inset content around the status bar, nav bar, camera cutout and rounded
+                    // corners once here so every screen below gets it for free
+                    Box(modifier = Modifier.safeDrawingPadding()) {
+                        if (item == null) {
+                            DownloadsScreen(onOpenItem = { openItem = it })
+                        } else {
+                            ItemScreen(item = item, onBack = { openItem = null })
+                        }
                     }
                 }
             }
         }
+    }
+
+    // Android refuses clipboard reads until the window actually has focus, which happens
+    // after onResume — reading any earlier is silently denied
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+
+        if (!hasFocus) return
+
+        val clipboard = getSystemService(ClipboardManager::class.java)
+        val text = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+        val store = LastHandledLink(this)
+        val link = ClipboardPickup.linkToDownload(text, store.get()) ?: return
+
+        Log.d("InstaSaver", "clipboard pickup: ${link.take(60)}")
+
+        store.set(link)
+
+        DownloadWorker.enqueue(this, link)
     }
 }
 

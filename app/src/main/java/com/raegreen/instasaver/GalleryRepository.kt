@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
@@ -36,7 +37,7 @@ class GalleryRepository(private val context: Context) {
         send(load())
 
         awaitClose { context.contentResolver.unregisterContentObserver(observer) }
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(Dispatchers.IO).conflate()
 
     private fun query(collection: Uri, type: MediaType): List<SavedItem> {
         val projection = arrayOf(
@@ -46,7 +47,7 @@ class GalleryRepository(private val context: Context) {
             MediaStore.MediaColumns.SIZE,
         )
         val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-        val args = arrayOf("${relativePath(type)}%")
+        val args = arrayOf("${type.relativePath}/%")
         val items = mutableListOf<SavedItem>()
 
         context.contentResolver.query(collection, projection, selection, args, null)?.use { cursor ->
@@ -70,11 +71,8 @@ class GalleryRepository(private val context: Context) {
     }
 
     private val videoCollection: Uri
-        get() = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        get() = MediaType.VIDEO.collection
 
     private val imageCollection: Uri
-        get() = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-
-    private fun relativePath(type: MediaType): String =
-        if (type == MediaType.VIDEO) "Movies/InstaSaver" else "Pictures/InstaSaver"
+        get() = MediaType.IMAGE.collection
 }

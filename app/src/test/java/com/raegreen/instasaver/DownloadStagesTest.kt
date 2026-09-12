@@ -21,7 +21,11 @@ class DownloadStagesTest {
     @Test
     fun `finished work gets no row`() {
         assertNull(DownloadStages.stageOf(WorkInfo.State.SUCCEEDED))
-        assertNull(DownloadStages.stageOf(WorkInfo.State.FAILED))
         assertNull(DownloadStages.stageOf(WorkInfo.State.CANCELLED))
+    }
+
+    @Test
+    fun `failed work gets a row so the user is told`() {
+        assertEquals(DownloadStage.FAILED, DownloadStages.stageOf(WorkInfo.State.FAILED))
     }
 }

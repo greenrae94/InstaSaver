@@ -44,4 +44,51 @@ class PostDataParserTest {
 
         assertTrue(error.message!!.contains("no post data"))
     }
+
+    @Test
+    fun `reads every item of a carousel in order`() {
+        val post = PostDataParser.parse(fixture("carousel.html"))
+
+        assertEquals(3, post.items.size)
+        assertEquals(listOf(1, 2, 3), post.items.map { it.index })
+        assertEquals(3, post.items.map { it.url }.distinct().size)
+        assertTrue(post.items.all { it.url.contains("fbcdn") })
+        assertEquals("fleexyz", post.username)
+        assertEquals("DdKEYq0DlhH", post.shortcode)
+    }
+
+    @Test
+    fun `rejects post data with no username`() {
+        val html = """<script type="application/json">{"xig_polaris_media":{"if_not_gated_logged_out":{}}}</script>"""
+
+        val error = assertThrows(PostDataParseException::class.java) {
+            PostDataParser.parse(html)
+        }
+
+        assertEquals("no username in post data", error.message)
+    }
+
+    @Test
+    fun `rejects post data with no shortcode`() {
+        val html =
+            """<script type="application/json">{"xig_polaris_media":{"if_not_gated_logged_out":{"user":{"username":"someone"}}}}</script>"""
+
+        val error = assertThrows(PostDataParseException::class.java) {
+            PostDataParser.parse(html)
+        }
+
+        assertEquals("no shortcode in post data", error.message)
+    }
+
+    @Test
+    fun `rejects post data with no video or image`() {
+        val html =
+            """<script type="application/json">{"xig_polaris_media":{"if_not_gated_logged_out":{"user":{"username":"someone"},"code":"ABC123"}}}</script>"""
+
+        val error = assertThrows(PostDataParseException::class.java) {
+            PostDataParser.parse(html)
+        }
+
+        assertEquals("no video or image in post data", error.message)
+    }
 }

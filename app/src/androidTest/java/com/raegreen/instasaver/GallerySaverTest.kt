@@ -32,9 +32,11 @@ class GallerySaverTest {
 
         val uri = saver.save(name, MediaType.IMAGE, bytes.inputStream())
 
-        assertTrue(saver.alreadySaved(name, MediaType.IMAGE))
-        assertEquals(bytes.size, context.contentResolver.openInputStream(uri)!!.use { it.readBytes().size })
-
-        context.contentResolver.delete(uri, null, null)
+        try {
+            assertTrue(saver.alreadySaved(name, MediaType.IMAGE))
+            assertEquals(bytes.size, context.contentResolver.openInputStream(uri)!!.use { it.readBytes().size })
+        } finally {
+            context.contentResolver.delete(uri, null, null)
+        }
     }
 }

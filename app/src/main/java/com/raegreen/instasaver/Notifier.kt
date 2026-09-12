@@ -17,27 +17,26 @@ class Notifier(private val context: Context, private val notificationId: Int) {
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Downloads", NotificationManager.IMPORTANCE_LOW)
         )
+
+        // Anything other than a successful save needs to actually reach the user; a save itself stays silent
+        manager.createNotificationChannel(
+            NotificationChannel(PROBLEM_CHANNEL_ID, "Alerts", NotificationManager.IMPORTANCE_DEFAULT)
+        )
     }
 
-    fun progress() = notify("Saving…", null)
+    fun progress() = notify(CHANNEL_ID, "Saving…", null)
 
     fun result(outcome: Outcome) {
-        val (title, text) = when (outcome) {
-            is Outcome.Saved -> "Saved" to if (outcome.count == 1) "1 item saved to your gallery" else "${outcome.count} items saved to your gallery"
-            Outcome.AlreadySaved -> "Already saved" to "This post is already in your gallery"
-            Outcome.NotAPostLink -> "Not a post link" to "That's not a post or Reel link"
-            is Outcome.CouldNotRead -> "Couldn't read this post" to "Instagram didn't return the post data"
-            is Outcome.NetworkFailed -> "Download failed" to outcome.reason
-        }
+        val channel = if (OutcomeMessages.needsAttention(outcome)) PROBLEM_CHANNEL_ID else CHANNEL_ID
 
-        notify(title, text)
+        notify(channel, OutcomeMessages.title(outcome), OutcomeMessages.text(outcome))
     }
 
     // Covers exceptions the coordinator doesn't itself catch, so a "Saving…" notification never sits unresolved
-    fun failure(detail: String) = notify("Something went wrong", detail)
+    fun failure(detail: String) = notify(PROBLEM_CHANNEL_ID, "Something went wrong", detail)
 
-    private fun notify(title: String, text: String?) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+    private fun notify(channelId: String, title: String, text: String?) {
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle(title)
             .setContentText(text)
@@ -51,5 +50,6 @@ class Notifier(private val context: Context, private val notificationId: Int) {
 
     companion object {
         private const val CHANNEL_ID = "downloads"
+        private const val PROBLEM_CHANNEL_ID = "problems"
     }
 }

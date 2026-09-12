@@ -70,6 +70,18 @@ class DownloadCoordinatorTest {
     }
 
     @Test
+    fun `reports the whole post as saved when a retry only had the remainder to fetch`() = runBlocking {
+        val sink = FakeSink(existing = setOf("fleexyz_DdHMr9eMQQR_1.jpg"))
+        val source = FakeSource(carousel)
+
+        val outcome = DownloadCoordinator(source, sink).run(reelLink)
+
+        assertEquals(Outcome.Saved(2), outcome)
+        assertEquals(listOf("fleexyz_DdHMr9eMQQR_2.mp4"), sink.saved)
+        assertEquals(listOf("https://cdn/2.mp4"), source.downloaded)
+    }
+
+    @Test
     fun `skips a post that is already saved`() = runBlocking {
         val sink = FakeSink(existing = setOf("connorirwin_98_DdDxpiPOAzs.mp4"))
 

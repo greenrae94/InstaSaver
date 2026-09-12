@@ -32,17 +32,34 @@ object PostDataParser {
         val shortcode = node["code"]?.jsonPrimitive?.contentOrNull
             ?: throw PostDataParseException("no shortcode in post data")
 
-        return ResolvedPost(username, shortcode, listOf(mediaItem(node, index = 1)))
+        // A multi-item post carries its children in an array; a single post is its own item
+        val children = node["carousel_media"] as? JsonArray
+
+        val items = children
+            ?.mapIndexedNotNull { position, child -> child.jsonObjectOrNull()?.let { mediaItem(it, position + 1) } }
+            ?: listOf(mediaItem(node, index = 1))
+
+        if (items.isEmpty()) throw PostDataParseException("no media in post data")
+
+        return ResolvedPost(username, shortcode, items)
     }
 
-    // The page embeds its data in JSON script blocks; only some of them carry the post
-    private fun findMediaNode(html: String): JsonObject? =
-        SCRIPT_PATTERN.findAll(html)
+    // The page embeds its data in JSON script blocks; only some of them carry the post.
+    // Prefer a candidate that actually carries media, falling back to the first structural match.
+    private fun findMediaNode(html: String): JsonObject? {
+        val candidates = SCRIPT_PATTERN.findAll(html)
             .map { it.groupValues[1] }
             .filter { it.contains("xig_polaris_media") }
             .mapNotNull { runCatching { json.parseToJsonElement(it) }.getOrNull() }
             .mapNotNull { findUngatedMedia(it) }
-            .firstOrNull()
+            .toList()
+
+        return candidates.firstOrNull { hasMedia(it) } ?: candidates.firstOrNull()
+    }
+
+    // Whether a node actually carries something the parser can turn into a MediaItem
+    private fun hasMedia(node: JsonObject): Boolean =
+        node["video_versions"] != null || node["image_versions2"] != null || node["carousel_media"] != null
 
     // The post sits at an unpredictable depth, so walk the tree looking for the wrapper
     private fun findUngatedMedia(element: JsonElement): JsonObject? {

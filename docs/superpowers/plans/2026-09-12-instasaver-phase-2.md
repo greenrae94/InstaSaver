@@ -1147,7 +1147,250 @@ Expected: `BUILD SUCCESSFUL`, 32 tests passing (27 from Task 3 plus 5 clipboard 
 
 ---
 
-### Task 7: Whole-app check on the phone
+### Task 7: Failure visibility
+
+Added after owner testing. A download failed silently: the app detected it correctly and posted
+"Couldn't read this post", but the notification channel is `IMPORTANCE_LOW`, so it arrived with no
+banner and no sound and the owner never saw it. The post turned out to be age-restricted —
+Instagram serves its page without the post data to anyone not signed in.
+
+**Files:**
+- Create: `app/src/main/java/com/raegreen/instasaver/OutcomeMessages.kt`
+- Create: `app/src/test/java/com/raegreen/instasaver/OutcomeMessagesTest.kt`
+- Modify: `app/src/main/java/com/raegreen/instasaver/Notifier.kt`
+- Modify: `app/src/main/java/com/raegreen/instasaver/DownloadWorker.kt`
+- Modify: `app/src/main/java/com/raegreen/instasaver/ActiveDownload.kt`
+- Modify: `app/src/main/java/com/raegreen/instasaver/DownloadsScreen.kt`
+- Modify: `app/src/test/java/com/raegreen/instasaver/DownloadStagesTest.kt`
+
+**Interfaces:**
+- Consumes: `Outcome` (phase 1), `DownloadStage`, `ActiveDownload`, `DownloadStages`, `DownloadWorker`.
+- Produces:
+  - `object OutcomeMessages { fun isFailure(outcome: Outcome): Boolean; fun title(outcome: Outcome): String; fun text(outcome: Outcome): String }`
+  - `DownloadStage` gains `FAILED`; `ActiveDownload` gains `val reason: String? = null`
+  - `DownloadWorker.KEY_ERROR`
+
+- [ ] **Step 1: Write the failing tests**
+
+`app/src/test/java/com/raegreen/instasaver/OutcomeMessagesTest.kt`:
+
+```kotlin
+package com.raegreen.instasaver
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class OutcomeMessagesTest {
+
+    @Test
+    fun `saving and skipping are not failures`() {
+        assertFalse(OutcomeMessages.isFailure(Outcome.Saved(1)))
+        assertFalse(OutcomeMessages.isFailure(Outcome.AlreadySaved))
+    }
+
+    @Test
+    fun `every unsuccessful outcome is a failure`() {
+        assertTrue(OutcomeMessages.isFailure(Outcome.NotAPostLink))
+        assertTrue(OutcomeMessages.isFailure(Outcome.CouldNotRead("no post data in page")))
+        assertTrue(OutcomeMessages.isFailure(Outcome.NetworkFailed("timeout")))
+    }
+
+    @Test
+    fun `saved text counts the items`() {
+        assertEquals("1 item saved to your gallery", OutcomeMessages.text(Outcome.Saved(1)))
+        assertEquals("3 items saved to your gallery", OutcomeMessages.text(Outcome.Saved(3)))
+    }
+
+    @Test
+    fun `an unreadable post explains the likely causes without inventing one`() {
+        val text = OutcomeMessages.text(Outcome.CouldNotRead("no post data in page"))
+
+        assertTrue(text.contains("age-restricted"))
+        assertTrue(text.contains("private"))
+        assertTrue(text.contains("removed"))
+    }
+
+    @Test
+    fun `a network failure carries its reason`() {
+        assertTrue(OutcomeMessages.text(Outcome.NetworkFailed("timeout")).contains("timeout"))
+    }
+}
+```
+
+Append to `DownloadStagesTest`:
+
+```kotlin
+    @Test
+    fun `failed work gets a row so the user is told`() {
+        assertEquals(DownloadStage.FAILED, DownloadStages.stageOf(WorkInfo.State.FAILED))
+    }
+```
+
+and change the existing `finished work gets no row` test to drop `FAILED` from its assertions, keeping `SUCCEEDED` and `CANCELLED`.
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+```bash
+cd /Users/raegreen/Documents/Personal/Apps/insta-vid-download-app && ./gradlew :app:testDebugUnitTest --tests '*OutcomeMessagesTest*' --tests '*DownloadStagesTest*'
+```
+
+Expected: compilation failure — `OutcomeMessages` and `DownloadStage.FAILED` do not exist.
+
+- [ ] **Step 3: Write the message source of truth**
+
+`app/src/main/java/com/raegreen/instasaver/OutcomeMessages.kt`:
+
+```kotlin
+package com.raegreen.instasaver
+
+// One place for what the user is told, used by both the notification and the failed row in the
+// list, so the two can never drift apart.
+object OutcomeMessages {
+
+    fun isFailure(outcome: Outcome): Boolean = when (outcome) {
+        is Outcome.Saved, Outcome.AlreadySaved -> false
+        else -> true
+    }
+
+    fun title(outcome: Outcome): String = when (outcome) {
+        is Outcome.Saved -> "Saved"
+        Outcome.AlreadySaved -> "Already saved"
+        Outcome.NotAPostLink -> "Not a post link"
+        is Outcome.CouldNotRead -> "Couldn't read this post"
+        is Outcome.NetworkFailed -> "Download failed"
+    }
+
+    fun text(outcome: Outcome): String = when (outcome) {
+        is Outcome.Saved ->
+            if (outcome.count == 1) "1 item saved to your gallery" else "${outcome.count} items saved to your gallery"
+
+        Outcome.AlreadySaved -> "This post is already in your gallery"
+
+        Outcome.NotAPostLink -> "That's not a post or Reel link"
+
+        // Instagram does not say which restriction applies, so name the likely causes rather
+        // than guessing one
+        is Outcome.CouldNotRead ->
+            "Instagram didn't send this post's data. It may be age-restricted, private, or removed. Open it in Instagram to check."
+
+        is Outcome.NetworkFailed -> "Couldn't reach Instagram: ${outcome.reason}"
+    }
+}
+```
+
+- [ ] **Step 4: Give failures their own notification channel**
+
+In `Notifier.kt`: create a second channel alongside the existing one, and pick per outcome.
+
+```kotlin
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "Downloads", NotificationManager.IMPORTANCE_LOW)
+        )
+
+        // Failures need to actually reach the user; successes stay silent
+        manager.createNotificationChannel(
+            NotificationChannel(PROBLEM_CHANNEL_ID, "Problems", NotificationManager.IMPORTANCE_DEFAULT)
+        )
+```
+
+Replace the `when` block inside `result` with calls to `OutcomeMessages`, and route the notification to `PROBLEM_CHANNEL_ID` when `OutcomeMessages.isFailure(outcome)` is true. `progress()` and the success path keep using `CHANNEL_ID`. Add `private const val PROBLEM_CHANNEL_ID = "problems"` to the companion object. `failure(...)` keeps its existing signature and uses the problem channel.
+
+- [ ] **Step 5: Record failures as failed work carrying their reason**
+
+In `DownloadWorker.doWork`, after `notifier.result(outcome)`, replace the final `Result` decision so any unsuccessful outcome is recorded as failed work with its message attached:
+
+```kotlin
+        notifier.result(outcome)
+
+        // Recording a failure as failed work — with its reason — is what lets the list show it
+        if (OutcomeMessages.isFailure(outcome)) {
+            return@withContext Result.failure(Data.Builder().putString(KEY_ERROR, OutcomeMessages.text(outcome)).build())
+        }
+
+        Result.success()
+```
+
+Add `const val KEY_ERROR = "error"` to the companion object. Leave the retry gate, the cancellation rethrow and the unexpected-exception catch exactly as they are, except that the unexpected-exception path should also attach `KEY_ERROR` with its existing message so it appears in the list too.
+
+- [ ] **Step 6: Turn failed work into a row**
+
+In `ActiveDownload.kt`: add `FAILED` to `DownloadStage`, add `val reason: String? = null` to `ActiveDownload`, map `WorkInfo.State.FAILED` to `DownloadStage.FAILED` in `stageOf`, and in `activeDownloads` read the reason for failed work:
+
+```kotlin
+    fun activeDownloads(infos: List<WorkInfo>): List<ActiveDownload> = infos.mapNotNull { info ->
+        val stage = stageOf(info.state) ?: return@mapNotNull null
+        val label = info.progress.getString(DownloadWorker.KEY_LABEL) ?: DEFAULT_LABEL
+        val reason = if (stage == DownloadStage.FAILED) info.outputData.getString(DownloadWorker.KEY_ERROR) else null
+
+        ActiveDownload(info.id, label, stage, reason)
+    }
+```
+
+- [ ] **Step 7: Show the failed row**
+
+In `DownloadsScreen.kt`, extend `ActiveRow` so a `FAILED` download renders differently: no spinner, the reason in the error colour, and tapping it clears the row. Keep the waiting and downloading cases exactly as they are.
+
+```kotlin
+@Composable
+private fun ActiveRow(download: ActiveDownload) {
+    val context = LocalContext.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .let { if (download.stage == DownloadStage.FAILED) it.clickable { WorkManager.getInstance(context).pruneWork() } else it }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        if (download.stage == DownloadStage.FAILED) {
+            Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+        } else {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+        }
+
+        Column {
+            Text(download.label, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                when (download.stage) {
+                    DownloadStage.WAITING -> "Waiting…"
+                    DownloadStage.DOWNLOADING -> "Downloading…"
+                    DownloadStage.FAILED -> download.reason ?: "Download failed"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (download.stage == DownloadStage.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            )
+            if (download.stage == DownloadStage.FAILED) {
+                Text("Tap to dismiss", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+```
+
+Add the imports this needs: `androidx.compose.material.icons.filled.Warning` and `androidx.compose.foundation.clickable` if not already present.
+
+- [ ] **Step 8: Run the tests to verify they pass**
+
+```bash
+cd /Users/raegreen/Documents/Personal/Apps/insta-vid-download-app && ./gradlew assembleDebug :app:testDebugUnitTest --rerun-tasks
+```
+
+Expected: `BUILD SUCCESSFUL`, 38 tests passing (32 existing plus 5 message tests plus 1 stage test).
+
+- [ ] **Step 9: Put it on the phone**
+
+```bash
+cd /Users/raegreen/Documents/Personal/Apps/insta-vid-download-app && ./gradlew installDebug
+```
+
+Then ask the owner to share the age-restricted post `https://www.instagram.com/reel/DdJ9yvzjvNh/?stkn=YXRzN3RnOHU0a2px` and confirm: a notification that actually alerts, and a failed row in the list naming the likely causes, which clears when tapped.
+
+---
+
+### Task 8: Whole-app check on the phone
 
 **Files:**
 - Create: `docs/phase-2-device-check-2026-09-12.md`

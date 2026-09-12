@@ -69,9 +69,17 @@ untouched.
 
 ### The list
 
-- Sources: every file in `Movies/InstaSaver` and `Pictures/InstaSaver`, merged and sorted newest
-  first. This deliberately includes the ~138 files already there from the owner's previous
-  downloader — the gallery is the record, and the app stores no list of its own.
+- Sources: the files in `Movies/InstaSaver` and `Pictures/InstaSaver`, merged and sorted newest
+  first. The gallery is the record; the app stores no list of its own.
+- **Correction, found in testing on 2026-09-12:** this design originally said the list would also
+  show the ~138 files already in those folders from the owner's previous downloader. It does not,
+  and cannot. Android's scoped storage limits an app to the media it created unless it requests
+  permission to read the user's whole photo library, which this app deliberately does not do. The
+  list therefore shows only this app's own saves. The owner tested it and prefers this, so the
+  behaviour stands and the spec is corrected rather than the code: it needs no permission prompt,
+  keeps the app out of the rest of their photos, and makes the list mean "what InstaSaver saved".
+  Showing the older files would mean requesting `READ_MEDIA_VIDEO` and `READ_MEDIA_IMAGES`, which
+  is a bigger ask than the feature is worth.
 - Each row: thumbnail, display name, relative time ("2 minutes ago"), and a video/image marker.
 - Live rows sit above saved items. A download shows "Waiting…" while queued and "Downloading…"
   while running; when it finishes, the live row disappears and the file appears in the list
@@ -94,16 +102,22 @@ untouched.
 - **Image:** decoded from the uri and displayed to fit.
 - **Share:** `ACTION_SEND` with the item's uri and mime type, read permission granted to the
   receiving app, through the system chooser — Discord is one tap from there.
-- **Delete:** try a direct delete first, which succeeds silently for files this app saved. For
-  files it does not own (the ~138 older ones), Android throws a recoverable security exception;
-  the app then asks the system to show its own confirmation dialog and deletes on approval.
-  Declining leaves the file alone.
+- **Delete:** try a direct delete first, which succeeds silently for files this app saved — in
+  practice every file in the list, given the scoped-storage correction above. The fallback path,
+  where Android throws for a file the app does not own and supplies its own confirmation dialog,
+  is kept because it costs three lines and is the correct behaviour if the app is ever granted
+  broader media access. Declining the dialog leaves the file alone.
 - Closing the item returns to the list, which reflects any deletion immediately.
 
 ### Clipboard pickup
 
-- On resume, read the clipboard's text. Android only permits this while the app is focused, so
-  this is the only moment it can happen.
+- When the app's window gains focus, read the clipboard's text. Android only permits this while
+  the app is focused, so this is the only moment it can happen.
+- **Correction, found in testing on 2026-09-12:** this originally said "on resume", and the code
+  followed it. That is too early — `onResume` runs before the window actually holds focus, and
+  Android refused every read with "Denying clipboard access… application is not in focus",
+  silently, because a refused read is indistinguishable from an empty clipboard. The read belongs
+  in `onWindowFocusChanged`.
 - If the text parses as a post link (`LinkParser`) **and** differs from the last link the app
   acted on, enqueue a download and store the new link as last-handled.
 - Otherwise do nothing at all — no message, no prompt.

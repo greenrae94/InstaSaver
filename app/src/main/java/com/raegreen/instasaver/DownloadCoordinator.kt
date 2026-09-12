@@ -41,11 +41,16 @@ class DownloadCoordinator(private val source: PostSource, private val sink: Medi
         onLabel("@${post.username}")
 
         var saved = 0
+        var alreadyPresent = 0
 
         for (item in post.items) {
             val fileName = FileNaming.fileName(post.username, post.shortcode, item, post.items.size)
 
-            if (sink.alreadySaved(fileName, item.type)) continue
+            if (sink.alreadySaved(fileName, item.type)) {
+                alreadyPresent++
+
+                continue
+            }
 
             try {
                 sink.save(fileName, item.type, source.download(item.url))
@@ -56,6 +61,8 @@ class DownloadCoordinator(private val source: PostSource, private val sink: Medi
             saved++
         }
 
-        return if (saved == 0) Outcome.AlreadySaved else Outcome.Saved(saved)
+        // A retry that only had to save the remainder still saved the whole post, so the count
+        // reported to the owner should describe the post, not just this invocation
+        return if (saved == 0) Outcome.AlreadySaved else Outcome.Saved(saved + alreadyPresent)
     }
 }
