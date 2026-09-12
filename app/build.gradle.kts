@@ -19,9 +19,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Signing details come from ~/.gradle/gradle.properties, never from this repo, so the
+    // keystore and its password cannot be committed. Without them a release build is simply
+    // unsigned — debug builds are unaffected.
+    signingConfigs {
+        create("release") {
+            val keystorePath = providers.gradleProperty("INSTASAVER_STORE_FILE").orNull
+
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = providers.gradleProperty("INSTASAVER_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("INSTASAVER_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("INSTASAVER_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
