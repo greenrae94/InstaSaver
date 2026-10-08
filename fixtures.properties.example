@@ -1,0 +1,38 @@
+# Test fixtures for the PostDataParser / MediaResolver tests.
+#
+# The tests run against real Instagram pages, because a hand-written page would
+# never contain real-world traps (e.g. a carousel's cover image URL being
+# byte-identical to its first child's). Those pages are other people's posts, so
+# they are NOT committed to this repository.
+#
+# To run the fixture-backed tests:
+#   1. cp fixtures.properties.example fixtures.properties
+#   2. Fill in the slots below with public posts you can open in a browser.
+#      Any public post works. Private, age-restricted or deleted posts will not.
+#   3. Run tools/fetch-fixtures.sh
+#
+# fixtures.properties is gitignored: your URLs stay on your machine. The
+# downloaded pages and expectations.properties (under
+# app/src/test/resources/fixtures/) are gitignored too.
+#
+# Without these, the fixture-backed tests are skipped (not failed).
+#
+# Each slot needs the post URL plus the values the tests assert against it.
+# The shortcode is the part of the URL after /p/ or /reel/.
+
+# A Reel (https://www.instagram.com/reel/<shortcode>/)
+reel.url=https://www.instagram.com/reel/SHORTCODE/
+reel.username=account_name_without_at
+reel.shortcode=SHORTCODE
+
+# A single-image post (https://www.instagram.com/p/<shortcode>/)
+image.url=https://www.instagram.com/p/SHORTCODE/
+image.username=account_name_without_at
+image.shortcode=SHORTCODE
+
+# A carousel with several items (https://www.instagram.com/p/<shortcode>/)
+# itemCount is how many photos/videos the carousel contains (at least 2).
+carousel.url=https://www.instagram.com/p/SHORTCODE/
+carousel.username=account_name_without_at
+carousel.shortcode=SHORTCODE
+carousel.itemCount=3

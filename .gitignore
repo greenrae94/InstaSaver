@@ -7,3 +7,8 @@ app/build/
 .DS_Store
 .superpowers/
 *.swp
+fixtures.properties
+app/src/test/resources/fixtures/reel.html
+app/src/test/resources/fixtures/image-post.html
+app/src/test/resources/fixtures/carousel.html
+app/src/test/resources/fixtures/expectations.properties

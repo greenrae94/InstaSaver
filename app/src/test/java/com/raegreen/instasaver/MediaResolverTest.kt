@@ -14,9 +14,6 @@ class MediaResolverTest {
     private lateinit var server: MockWebServer
     private lateinit var resolver: MediaResolver
 
-    private fun fixture(name: String): String =
-        checkNotNull(javaClass.classLoader?.getResourceAsStream("fixtures/$name")).bufferedReader().use { it.readText() }
-
     @Before
     fun setUp() {
         server = MockWebServer()
@@ -31,9 +28,9 @@ class MediaResolverTest {
 
     @Test
     fun `resolves a reel to one video item`() {
-        server.enqueue(MockResponse().setBody(fixture("reel.html")))
+        server.enqueue(MockResponse().setBody(Fixtures.page("reel.html")))
 
-        val post = resolver.resolve(LinkTarget.Post(PostRef("DdDxpiPOAzs", PostKind.REEL)))
+        val post = resolver.resolve(LinkTarget.Post(PostRef(Fixtures.expected("reel.shortcode"), PostKind.REEL)))
 
         assertEquals(1, post.items.size)
         assertEquals(MediaType.VIDEO, post.items[0].type)
@@ -41,13 +38,13 @@ class MediaResolverTest {
 
     @Test
     fun `follows a share link before resolving`() {
-        val stub = StubFetcher(finalUrl = "https://www.instagram.com/reel/DdDxpiPOAzs/", page = fixture("reel.html"))
+        val stub = StubFetcher(finalUrl = "https://www.instagram.com/reel/${Fixtures.expected("reel.shortcode")}/", page = Fixtures.page("reel.html"))
         val stubResolver = MediaResolver(stub)
 
         val post = stubResolver.resolve(LinkTarget.Redirect("https://www.instagram.com/share/reel/xyz/"))
 
         assertEquals(MediaType.VIDEO, post.items[0].type)
-        assertEquals(PostRef("DdDxpiPOAzs", PostKind.REEL), stub.fetchedRef)
+        assertEquals(PostRef(Fixtures.expected("reel.shortcode"), PostKind.REEL), stub.fetchedRef)
     }
 
     @Test

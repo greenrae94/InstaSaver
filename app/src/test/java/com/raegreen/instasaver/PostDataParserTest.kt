@@ -7,33 +7,31 @@ import org.junit.Test
 
 class PostDataParserTest {
 
-    private fun fixture(name: String): String =
-        checkNotNull(javaClass.classLoader?.getResourceAsStream("fixtures/$name")) { "missing fixture $name" }
-            .bufferedReader()
-            .use { it.readText() }
+    // Instagram serves media from either CDN host depending on when and where the page was fetched
+    private fun isInstagramCdn(url: String): Boolean = url.contains("fbcdn") || url.contains("cdninstagram")
 
     @Test
     fun `reads a single video from a reel page`() {
-        val post = PostDataParser.parse(fixture("reel.html"))
+        val post = PostDataParser.parse(Fixtures.page("reel.html"))
 
         assertEquals(1, post.items.size)
         assertEquals(MediaType.VIDEO, post.items[0].type)
         assertEquals(1, post.items[0].index)
         assertTrue(post.items[0].url.startsWith("https://"))
-        assertTrue(post.items[0].url.contains("fbcdn"))
-        assertEquals("connorirwin_98", post.username)
-        assertEquals("DdDxpiPOAzs", post.shortcode)
+        assertTrue(isInstagramCdn(post.items[0].url))
+        assertEquals(Fixtures.expected("reel.username"), post.username)
+        assertEquals(Fixtures.expected("reel.shortcode"), post.shortcode)
     }
 
     @Test
     fun `reads a single image from a photo post page`() {
-        val post = PostDataParser.parse(fixture("image-post.html"))
+        val post = PostDataParser.parse(Fixtures.page("image-post.html"))
 
         assertEquals(1, post.items.size)
         assertEquals(MediaType.IMAGE, post.items[0].type)
-        assertTrue(post.items[0].url.contains("fbcdn"))
-        assertEquals("fleexyz", post.username)
-        assertEquals("DdHMr9eMQQR", post.shortcode)
+        assertTrue(isInstagramCdn(post.items[0].url))
+        assertEquals(Fixtures.expected("image.username"), post.username)
+        assertEquals(Fixtures.expected("image.shortcode"), post.shortcode)
     }
 
     @Test
@@ -47,14 +45,17 @@ class PostDataParserTest {
 
     @Test
     fun `reads every item of a carousel in order`() {
-        val post = PostDataParser.parse(fixture("carousel.html"))
+        val post = PostDataParser.parse(Fixtures.page("carousel.html"))
 
-        assertEquals(3, post.items.size)
-        assertEquals(listOf(1, 2, 3), post.items.map { it.index })
-        assertEquals(3, post.items.map { it.url }.distinct().size)
-        assertTrue(post.items.all { it.url.contains("fbcdn") })
-        assertEquals("fleexyz", post.username)
-        assertEquals("DdKEYq0DlhH", post.shortcode)
+        val expectedCount = Fixtures.expected("carousel.itemCount").toInt()
+
+        assertEquals(expectedCount, post.items.size)
+        assertEquals((1..expectedCount).toList(), post.items.map { it.index })
+        // Distinct URLs guard against reading the parent's cover image for every child
+        assertEquals(expectedCount, post.items.map { it.url }.distinct().size)
+        assertTrue(post.items.all { isInstagramCdn(it.url) })
+        assertEquals(Fixtures.expected("carousel.username"), post.username)
+        assertEquals(Fixtures.expected("carousel.shortcode"), post.shortcode)
     }
 
     @Test
