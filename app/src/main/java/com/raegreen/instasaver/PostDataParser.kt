@@ -11,7 +11,14 @@ enum class MediaType { VIDEO, IMAGE }
 
 data class MediaItem(val url: String, val type: MediaType, val index: Int)
 
-data class ResolvedPost(val username: String, val shortcode: String, val items: List<MediaItem>)
+data class ResolvedPost(
+    val username: String,
+    val shortcode: String,
+    val items: List<MediaItem>,
+    // The page itself never says whether this is a Reel or a photo post, so the parser cannot
+    // know. MediaResolver fills it in from the link, which is the one place it is known.
+    val kind: PostKind = PostKind.POST,
+)
 
 class PostDataParseException(message: String) : Exception(message)
 

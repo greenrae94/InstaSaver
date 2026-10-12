@@ -8,6 +8,12 @@ interface PostSource {
     fun download(url: String): InputStream
 }
 
+// Where a saved file's originating post link goes. A fun interface so tests can pass a lambda,
+// and defaulted at the call site below so the existing tests construct a coordinator unchanged.
+fun interface LinkRecord {
+    fun record(fileName: String, postUrl: String)
+}
+
 interface MediaSink {
     fun alreadySaved(fileName: String, type: MediaType): Boolean
     fun save(fileName: String, type: MediaType, source: InputStream)
@@ -21,7 +27,11 @@ sealed interface Outcome {
     data class NetworkFailed(val reason: String) : Outcome
 }
 
-class DownloadCoordinator(private val source: PostSource, private val sink: MediaSink) {
+class DownloadCoordinator(
+    private val source: PostSource,
+    private val sink: MediaSink,
+    private val links: LinkRecord = LinkRecord { _, _ -> },
+) {
 
     // onLabel is called as the coordinator learns what this download is: the shortcode as soon
     // as the link parses, then the account once the page is fetched
@@ -40,6 +50,10 @@ class DownloadCoordinator(private val source: PostSource, private val sink: Medi
 
         onLabel("@${post.username}")
 
+        // Recorded against every file this post saves, so the item screen can offer a way back
+        // to the post it came from
+        val postUrl = PostUrls.canonical(post.shortcode, post.kind)
+
         var saved = 0
         var alreadyPresent = 0
 
@@ -57,6 +71,8 @@ class DownloadCoordinator(private val source: PostSource, private val sink: Medi
             } catch (error: IOException) {
                 return Outcome.NetworkFailed(error.message ?: "download failed")
             }
+
+            links.record(fileName, postUrl)
 
             saved++
         }
