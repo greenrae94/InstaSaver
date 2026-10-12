@@ -53,8 +53,10 @@ class DismissedFailuresTest {
         val first = dismissedFailures.get()
 
         // The Android trap: getStringSet can hand back the live internal set, so mutating a
-        // returned set in place must never leak into a later read
-        (first as? MutableSet<String>)?.add("mutated-locally")
+        // returned set in place must never leak into a later read. The defensive copy in get()
+        // means the attempt either throws or is silently discarded depending on the copy's
+        // concrete type — both are correct, and neither may reach the store.
+        runCatching { (first as? MutableSet<String>)?.add("mutated-locally") }
 
         val second = dismissedFailures.get()
 

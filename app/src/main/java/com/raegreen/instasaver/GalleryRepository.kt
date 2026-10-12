@@ -15,7 +15,9 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
-class GalleryRepository(private val context: Context) {
+// links is defaulted rather than injected everywhere, so the existing call sites and tests
+// construct a repository unchanged
+class GalleryRepository(private val context: Context, private val links: PostLinks = PostLinks(context)) {
 
     // Newest first, both folders merged — the gallery is the app's only record of what it saved
     fun load(): List<SavedItem> =
@@ -57,12 +59,15 @@ class GalleryRepository(private val context: Context) {
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
 
             while (cursor.moveToNext()) {
+                val displayName = cursor.getString(nameColumn)
+
                 items += SavedItem(
                     uri = ContentUris.withAppendedId(collection, cursor.getLong(idColumn)),
-                    displayName = cursor.getString(nameColumn),
+                    displayName = displayName,
                     type = type,
                     dateAddedSeconds = cursor.getLong(dateColumn),
                     sizeBytes = cursor.getLong(sizeColumn),
+                    postUrl = links.urlFor(displayName),
                 )
             }
         }

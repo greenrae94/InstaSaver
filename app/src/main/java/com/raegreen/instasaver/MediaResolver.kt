@@ -8,7 +8,7 @@ class MediaResolver(private val fetcher: InstagramPageFetcher) {
             is LinkTarget.Redirect -> refFromRedirect(target.url)
         }
 
-        return PostDataParser.parse(fetcher.fetch(ref))
+        return PostDataParser.parse(fetcher.fetch(ref)).copy(kind = ref.kind)
     }
 
     // Short share links hide the post id, so follow the redirect and read the real URL
