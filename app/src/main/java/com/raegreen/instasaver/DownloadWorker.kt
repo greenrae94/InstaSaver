@@ -49,7 +49,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         // SecurityException out of ContentResolver, say) must still resolve the "Saving…" notification
         // rather than leave it on screen forever
         val outcome = try {
-            DownloadCoordinator(source, sink).run(sharedText) { label ->
+            DownloadCoordinator(source, sink, PostLinks(applicationContext)).run(sharedText) { label ->
                 lastLabel = label
 
                 setProgress(androidx.work.workDataOf(KEY_LABEL to label))

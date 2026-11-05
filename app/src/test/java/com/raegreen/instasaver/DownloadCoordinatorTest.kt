@@ -34,10 +34,23 @@ private class FakeSink(private val existing: Set<String> = emptySet()) : MediaSi
     }
 }
 
+private class FakeLinks : LinkRecord {
+    val recorded = mutableListOf<Pair<String, String>>()
+
+    override fun record(fileName: String, postUrl: String) {
+        recorded += fileName to postUrl
+    }
+}
+
 class DownloadCoordinatorTest {
 
     private val reelLink = "https://www.instagram.com/reel/DdDxpiPOAzs/?stkn=abc"
-    private val onePost = ResolvedPost("connorirwin_98", "DdDxpiPOAzs", listOf(MediaItem("https://cdn/v.mp4", MediaType.VIDEO, 1)))
+    private val onePost = ResolvedPost(
+        "connorirwin_98",
+        "DdDxpiPOAzs",
+        listOf(MediaItem("https://cdn/v.mp4", MediaType.VIDEO, 1)),
+        kind = PostKind.REEL,
+    )
     private val carousel = ResolvedPost(
         "fleexyz",
         "DdHMr9eMQQR",
@@ -114,6 +127,54 @@ class DownloadCoordinatorTest {
         val outcome = DownloadCoordinator(source, FakeSink()).run(reelLink)
 
         assertEquals(Outcome.NetworkFailed("timeout"), outcome)
+    }
+
+    @Test
+    fun `records the post link against every file a multi item post saves`() = runBlocking {
+        val links = FakeLinks()
+
+        DownloadCoordinator(FakeSource(carousel), FakeSink(), links).run(reelLink)
+
+        assertEquals(
+            listOf(
+                "fleexyz_DdHMr9eMQQR_1.jpg" to "https://www.instagram.com/p/DdHMr9eMQQR/",
+                "fleexyz_DdHMr9eMQQR_2.mp4" to "https://www.instagram.com/p/DdHMr9eMQQR/",
+            ),
+            links.recorded,
+        )
+    }
+
+    // The recorded path follows the post's kind, not the file's media type
+    @Test
+    fun `records a reel link for a reel`() = runBlocking {
+        val links = FakeLinks()
+
+        DownloadCoordinator(FakeSource(onePost), FakeSink(), links).run(reelLink)
+
+        assertEquals(
+            listOf("connorirwin_98_DdDxpiPOAzs.mp4" to "https://www.instagram.com/reel/DdDxpiPOAzs/"),
+            links.recorded,
+        )
+    }
+
+    @Test
+    fun `records nothing for a post that is already saved`() = runBlocking {
+        val links = FakeLinks()
+        val sink = FakeSink(existing = setOf("connorirwin_98_DdDxpiPOAzs.mp4"))
+
+        DownloadCoordinator(FakeSource(onePost), sink, links).run(reelLink)
+
+        assertTrue(links.recorded.isEmpty())
+    }
+
+    @Test
+    fun `records nothing when the page cannot be read`() = runBlocking {
+        val links = FakeLinks()
+        val source = FakeSource(error = PostDataParseException("no post data in page"))
+
+        DownloadCoordinator(source, FakeSink(), links).run(reelLink)
+
+        assertTrue(links.recorded.isEmpty())
     }
 
     @Test

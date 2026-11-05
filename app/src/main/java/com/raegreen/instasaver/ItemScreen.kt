@@ -39,6 +39,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,13 +47,19 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ItemScreen(item: SavedItem, onBack: () -> Unit) {
     val context = LocalContext.current
+    val postLinks = remember { PostLinks(context) }
 
     // Android asks the user to confirm deleting files this app did not create
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) onBack()
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            postLinks.forget(item.displayName)
+
+            onBack()
+        }
     }
 
     var deleteFailed by remember { mutableStateOf(false) }
+    var openFailed by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         TextButton(onClick = onBack) { Text("← Back") }
@@ -79,7 +86,11 @@ fun ItemScreen(item: SavedItem, onBack: () -> Unit) {
                     // The item stays open on failure so the message below is visible, rather than
                     // closing a screen that no longer matches what actually happened
                     when (val result = ItemActions.deleteOrRequest(context, item.uri)) {
-                        is ItemActions.DeleteResult.Deleted -> onBack()
+                        is ItemActions.DeleteResult.Deleted -> {
+                            postLinks.forget(item.displayName)
+
+                            onBack()
+                        }
 
                         is ItemActions.DeleteResult.NeedsConfirmation ->
                             deleteLauncher.launch(IntentSenderRequest.Builder(result.intentSender).build())
@@ -93,6 +104,31 @@ fun ItemScreen(item: SavedItem, onBack: () -> Unit) {
             ) {
                 Text("Delete")
             }
+        }
+
+        // Absent, not disabled, for files saved before the app recorded post links — there is
+        // nothing the owner could do to make a missing link work
+        item.postUrl?.let { postUrl ->
+            OutlinedButton(
+                onClick = {
+                    try {
+                        context.startActivity(ItemActions.openPostIntent(postUrl))
+                    } catch (error: ActivityNotFoundException) {
+                        openFailed = true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Open on Instagram")
+            }
+        }
+
+        if (openFailed) {
+            Text(
+                "Nothing on this phone can open Instagram links",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
 
         if (deleteFailed) {

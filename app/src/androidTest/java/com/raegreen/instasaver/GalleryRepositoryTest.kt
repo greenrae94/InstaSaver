@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,6 +34,46 @@ class GalleryRepositoryTest {
             assertEquals(bytes.size.toLong(), mine.sizeBytes)
             assertEquals(name, items.first().displayName)
             assertTrue(items.zipWithNext().all { (a, b) -> a.dateAddedSeconds >= b.dateAddedSeconds })
+        } finally {
+            context.contentResolver.delete(uri, null, null)
+        }
+    }
+
+    // The wiring the "Open on Instagram" button rests on: a link recorded at download time has
+    // to come back attached to the right row
+    @Test
+    fun `surfaces the recorded post link for a saved file`() {
+        val name = "instasaver_repotest_${System.currentTimeMillis()}.jpg"
+        val bytes = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xD9.toByte())
+        val postLinks = PostLinks(context)
+        val postUrl = "https://www.instagram.com/reel/DdDxpiPOAzs/"
+
+        postLinks.record(name, postUrl)
+
+        val uri = saver.save(name, MediaType.IMAGE, bytes.inputStream())
+
+        try {
+            val mine = repository.load().first { it.displayName == name }
+
+            assertEquals(postUrl, mine.postUrl)
+        } finally {
+            context.contentResolver.delete(uri, null, null)
+            postLinks.forget(name)
+        }
+    }
+
+    // Everything already in the owner's library is in this state, so it must list normally with
+    // no link rather than failing the query
+    @Test
+    fun `leaves the post link null for a file that was never recorded`() {
+        val name = "instasaver_repotest_${System.currentTimeMillis()}.jpg"
+        val bytes = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xD9.toByte())
+        val uri = saver.save(name, MediaType.IMAGE, bytes.inputStream())
+
+        try {
+            val mine = repository.load().first { it.displayName == name }
+
+            assertNull(mine.postUrl)
         } finally {
             context.contentResolver.delete(uri, null, null)
         }

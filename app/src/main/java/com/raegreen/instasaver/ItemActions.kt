@@ -19,6 +19,10 @@ object ItemActions {
         object Failed : DeleteResult
     }
 
+    // No package set deliberately: Instagram claims its own links, so this lands in the app
+    // where the owner is already signed in, and falls back to a browser if it is not installed
+    fun openPostIntent(postUrl: String): Intent = Intent(Intent.ACTION_VIEW, Uri.parse(postUrl))
+
     fun shareIntent(item: SavedItem): Intent = Intent(Intent.ACTION_SEND).apply {
         type = item.type.mimeType
         putExtra(Intent.EXTRA_STREAM, item.uri)

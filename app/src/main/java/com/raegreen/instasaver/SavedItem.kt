@@ -8,4 +8,6 @@ data class SavedItem(
     val type: MediaType,
     val dateAddedSeconds: Long,
     val sizeBytes: Long,
+    // The post this file came from, or null for anything saved before the app recorded it
+    val postUrl: String? = null,
 )

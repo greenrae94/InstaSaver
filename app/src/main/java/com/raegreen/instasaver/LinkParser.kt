@@ -29,3 +29,15 @@ object LinkParser {
         return LinkTarget.Post(PostRef(match.groupValues[2], kind))
     }
 }
+
+// The inverse of LinkParser: the canonical link to a post, with the path matching its kind and
+// no tracking parameters. This is what gets recorded against a saved file, so it has to be a
+// link the app could be handed again and parse — see PostUrlsTest.
+object PostUrls {
+
+    fun canonical(shortcode: String, kind: PostKind): String {
+        val segment = if (kind == PostKind.REEL) "reel" else "p"
+
+        return "https://www.instagram.com/$segment/$shortcode/"
+    }
+}
