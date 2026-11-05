@@ -64,8 +64,13 @@ When a download fails, this answers why in one command:
 ./tools/live-check.sh <a post url>           # ...or is that one post restricted?
 ```
 
-It checks a known-good post alongside yours, which separates "Instagram changed
-and the app needs updating" from "that post is age-restricted, private or gone".
+It checks several known-good posts alongside yours, which separates "Instagram
+changed and the app needs updating" from "that post is age-restricted, private
+or gone". Several, because Instagram serves a deleted post as a normal page with
+no data in it — identical to a format change — so one control alone could accuse
+the app of being broken when all that happened was that the control got deleted.
+If `fixtures.properties` is filled in, its Reel joins the controls, so a change
+that gated videos while still serving images cannot pass as healthy.
 
 ## Known limits
 
